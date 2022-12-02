@@ -1,19 +1,17 @@
 # λprompt - Functional programming interface for building AI systems
 
+`pip install lambdaprompt`
+
+Try it out in colab [link](l1) | [link2] (l2)
+
 lambdaprompt is a python package, ...
-
-## Getting started
-
-Install `pip install lambdaprompt`
+* minimalistic API
+* functional helpers
+* create complex and emergent behavior
 
 For using openAI, set up API keys as environment variables or set after importing
 `OPENAI_API_KEY=...`
 `import lambdaprompt; lambdaprompt.setup(openai_api_key=’...’)`
-
-Try it out in colab [link]
-
-## Library demos and examples
-[[ See Here ]]
 
 ## How to
 
