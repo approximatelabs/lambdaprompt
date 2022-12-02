@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lambdaprompt"
+description = "A functional programming interface for building AI systems"
+readme = "README.md"
+requires-python = ">=3.7"
+keywords = ["nlp", "ai", "functional", "composition", "prompt", "apply", "chain", "machine"]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "requests",
+]
+dynamic = ["version"]
+urls = {homepage = "https://github.com/approximatelabs/lambdaprompt"}
