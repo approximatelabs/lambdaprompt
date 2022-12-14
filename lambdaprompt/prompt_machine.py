@@ -11,6 +11,7 @@ from re import S
 import aiohttp
 import requests
 import websockets
+from databases import Database
 from dotenv import load_dotenv
 from jinja2 import Environment, meta
 
@@ -185,9 +186,6 @@ async def async_get_gpt3_edit_response(
     return get_gpt3_response_choice(answer)
 
 
-import uuid
-
-from databases import Database
 
 MIGRATION_VERSION_TABLE = "mochaver"
 
