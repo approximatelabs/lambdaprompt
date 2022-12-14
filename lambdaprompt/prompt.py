@@ -1,172 +1,148 @@
 import asyncio
-import hashlib
 import inspect
 import json
 import time
+import traceback
+import uuid
+from functools import partial
+from hashlib import sha256
 
-# TODO: hook or logger stuff? just use regular logger and let someone add a database logger??
-# TODO: Need to decide a better data model, prompt vs. prompt execution id, and task_id, etc.
-# TODO: Need to decide how to handle async vs. sync prompts -- I think make everything async, then make the non async wrapper
+from jinja2 import Environment, meta
+from unsync import unsync
 
-# HOOKS = {
-#     "before_prompt": [],
-#     "after_prompt": [],
-# }
-
-
-def get_uid_from_args_kwargs(prompt, args, kwargs):
-    strversion = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True)
-    return hashlib.sha256(
-        prompt.id.encode("utf-8") + strversion.encode("utf-8")
-    ).hexdigest()
+CALLBACKS = []
 
 
-def get_prompt_stack_and_outer_id():
-    promptstack = {"prompts": [], "task_id": None}
+def register_callback(callback):
+    CALLBACKS.append(callback)
+
+
+async def call_callbacks(*args):
+    to_await = []
+    for callback in CALLBACKS:
+        if inspect.iscoroutinefunction(callback):
+            to_await.append(callback(*args))
+        else:
+            callback(*args)
+    await asyncio.gather(*to_await)
+
+
+def get_uid_from_obj(obj):
+    return sha256((json.dumps(obj, sort_keys=True)).encode("utf-8")).hexdigest()
+
+
+def get_prompt_stack():
+    # TODO: Figure out how to "see" through asyncio.gather and unync(...).result()
+    promptstack = []
     for frame in inspect.stack():
         if frame.function == "__call__":
             selfobj = frame[0].f_locals.get("self")
             if selfobj is not None:
-                # we are in a class
                 if isinstance(selfobj, Prompt):
-                    (args,) = frame[0].f_locals.get("args")
-                    kwargs = frame[0].f_locals.get("kwargs")
-                    uid_from_args = get_uid_from_args_kwargs(selfobj, args, kwargs)
-                    promptstack["prompts"].append(uid_from_args)
-                elif getattr(selfobj, "task_id", None):
-                    # special class that has "task_id" that is used for parent.
-                    promptstack["task_id"] = selfobj.task_id
+                    exec_uuid = frame[0].f_locals.get("exec_uuid")
+                    promptstack.append(exec_uuid)
     return promptstack
 
 
+def get_exec_repr():
+    for frame in inspect.stack():
+        if frame.function == "__call__":
+            selfobj = frame[0].f_locals.get("self")
+            if selfobj is not None:
+                if isinstance(selfobj, Prompt):
+                    return {
+                        "prompt": selfobj.serialized_repr,
+                        "args": frame[0].f_locals.get("args"),
+                        "kwargs": frame[0].f_locals.get("kwargs"),
+                        "exec_uuid": frame[0].f_locals.get("exec_uuid"),
+                        "callstack": frame[0].f_locals.get("ps"),
+                    }
+
+
 class Prompt:
-    def __init__(self, name, function=None):
-        self.name = name
+    def __init__(self, function, name=None):
+        self.name = name or function.__name__
         self.function = function
 
     def execute(self, *args, **kwargs):
-        if self.function is None:
-            raise NotImplementedError("Must implement function")
+        if not isinstance(self, AsyncPrompt) and inspect.iscoroutinefunction(
+            self.function
+        ):
+            return unsync(self.function)(*args, **kwargs).result()
         return self.function(*args, **kwargs)
 
     def __call__(self, *args, **kwargs):
-        promptstack = get_prompt_stack_and_outer_id()
-        execution_id = get_uid_from_args_kwargs(self, args, kwargs)
+        exec_uuid = str(uuid.uuid4())
+        ps = get_prompt_stack()
+        exec_repr = get_exec_repr()
         st = time.time()
-        asyncio.run(
-            record_prompt(
-                database,
-                execution_id,
-                self.name,
-                {"args": args, "kwargs": kwargs},
-                None,
-                None,
-                promptstack,
-            )
-        )
-        print("Entering prompt", self.name, promptstack)
-        toRaise = None
+        unsync(call_callbacks)("enter", st, exec_repr, None, None).result()
         try:
             response = self.execute(*args, **kwargs)
-        except Exception as e:
-            response = f"ERROR\n{e}"
-            toRaise = e
-        print("Exiting prompt", self.name, promptstack)
-        et = time.time()
-        if PM_SETTINGS["VERBOSE"]:
-            print_prompt_json(
-                execution_id,
-                self.name,
-                {"args": args, "kwargs": kwargs},
-                response,
-                et - st,
-            )
-        asyncio.run(
-            record_prompt(
-                database,
-                execution_id,
-                self.name,
-                {"args": args, "kwargs": kwargs},
-                response,
-                et - st,
-                promptstack,
-            )
-        )
-        if toRaise is not None:
-            raise toRaise
+        except Exception:
+            response = f"{traceback.format_exc()}"
+            raise
+        finally:
+            et = time.time()
+            unsync(call_callbacks)("enter", st, exec_repr, response, et - st).result()
         return response
 
     @property
     def id(self):
-        # grab the code from execute method and hash it
-        return md5(inspect.getsource(self.function).encode("utf-8")).hexdigest()
+        return get_uid_from_obj(self.code)
+
+    @property
+    def serialized_repr(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "type": self.__class__.__name__,
+            "code": self.code,
+        }
+
+    @property
+    def code(self):
+        return inspect.getsource(self.function)
 
 
-class asyncPrompt(Prompt):
+class AsyncPrompt(Prompt):
     async def __call__(self, *args, **kwargs):
-        promptstack = get_prompt_stack_and_outer_id()
-        execution_id = get_uid_from_args_kwargs(self, args, kwargs)
-        await record_prompt(
-            database,
-            execution_id,
-            self.name,
-            {"args": args, "kwargs": kwargs},
-            None,
-            None,
-            promptstack,
-        )
+        exec_uuid = str(uuid.uuid4())
+        ps = get_prompt_stack()
+        exec_repr = get_exec_repr()
         st = time.time()
-        print("Entering prompt", self.name, promptstack)
-        toRaise = None
+        await call_callbacks("enter", st, exec_repr, None, None)
         try:
             response = await self.execute(*args, **kwargs)
-        except Exception as e:
-            toRaise = e
-            response = f"ERROR\n{e}"
-        print("Exiting prompt", self.name, promptstack)
-        et = time.time()
-        if PM_SETTINGS["VERBOSE"]:
-            print_prompt_json(
-                execution_id,
-                self.name,
-                {"args": args, "kwargs": kwargs},
-                response,
-                et - st,
-            )
-        await record_prompt(
-            database,
-            execution_id,
-            self.name,
-            {"args": args, "kwargs": kwargs},
-            response,
-            et - st,
-            promptstack,
-        )
-        if toRaise is not None:
-            raise toRaise
+        except Exception:
+            response = f"{traceback.format_exc()}"
+            raise
+        finally:
+            et = time.time()
+            await call_callbacks("enter", st, exec_repr, response, et - st)
         return response
 
 
-class GPT3Prompt(Prompt):
-    id_keys = ["prompt_template_string", "stop", "temperature", "model_name"]
+def prompt(f):
+    if inspect.iscoroutinefunction(f):
+        return AsyncPrompt(f)
+    return Prompt(f)
 
-    def __init__(
-        self,
-        name,
-        prompt_template_string,
-        temperature=0.0,
-        stop=None,
-        model_name="text-davinci-002",
-    ):
-        super().__init__(name)
+
+env = Environment()
+
+
+class PromptTemplate(Prompt):
+    def __init__(self, prompt_template_string, name=None, **kwargs):
         self.prompt_template_string = prompt_template_string
         self.prompt_template = env.from_string(prompt_template_string)
-        self.stop = stop
-        self.temperature = temperature
-        self.model_name = model_name
+        self.kwargs = kwargs
 
-    def get_named_args(self):
-        return meta.find_undeclared_variables(env.parse(self.prompt_template_string))
+        async def function(*prompt_args, **prompt_kwargs):
+            prompt = self.get_prompt(*prompt_args, **prompt_kwargs)
+            return await self.call_on_template(prompt, **kwargs)
+
+        super().__init__(function, name=name)
 
     def get_prompt(self, *args, **kwargs):
         if len(args) > 0:
@@ -177,99 +153,23 @@ class GPT3Prompt(Prompt):
             )
         return self.prompt_template.render(**kwargs)
 
-    def execute(self, *args, **kwargs):
-        prompt = self.get_prompt(*args, **kwargs)
-        response = get_gpt3_response(
-            prompt, self.temperature, self.stop, self.model_name
-        )
-        return response
-
-    @property
-    def id(self):
-        # grab the code from execute method and hash it
-        reprstuff = " ".join([str(getattr(self, k)) for k in self.id_keys])
-        return md5(reprstuff.encode("utf-8")).hexdigest()
-
-
-class asyncGPT3Prompt(asyncPrompt, GPT3Prompt):
-    async def execute(self, *args, **kwargs):
-        prompt = self.get_prompt(*args, **kwargs)
-        response = await async_get_gpt3_response(
-            prompt, self.temperature, self.stop, self.model_name
-        )
-        return response
-
-
-class GPT3Edit(Prompt):
-    id_keys = [
-        "instruction_template_string",
-        "temperature",
-        "model_name",
-    ]
-
-    def __init__(
-        self,
-        name,
-        instruction_template_string,
-        temperature=0.0,
-        model_name="code-davinci-edit-001",
-    ):
-        super().__init__(name)
-        self.instruction_template_string = instruction_template_string
-        self.instruction_template = env.from_string(instruction_template_string)
-        self.temperature = temperature
-        self.model_name = model_name
+    @staticmethod
+    async def call_on_template(prompt, **kwargs):
+        raise NotImplementedError
 
     def get_named_args(self):
-        return meta.find_undeclared_variables(
-            env.parse(self.instruction_template_string)
-        )
-
-    def get_instruction(self, *args, **kwargs):
-        if len(args) > 0:
-            # also consider mixing kwargs and args
-            # also consider partial parsing with kwargs first, then applying remaining named args
-            return self.get_prompt(
-                **{n: a for n, a in zip(self.get_named_args(), args)}
-            )
-        return self.instruction_template.render(**kwargs)
-
-    def get_input(self, *args, **kwargs):
-        return kwargs.get("input", "")
-
-    def execute(self, *args, **kwargs):
-        input = self.get_input(*args, **kwargs)
-        instruction = self.get_instruction(*args, **kwargs)
-        response = get_gpt3_edit_response(
-            instruction,
-            input=input,
-            temperature=self.temperature,
-            model_name=self.model_name,
-        )
-        return response
+        return meta.find_undeclared_variables(env.parse(self.prompt_template_string))
 
     @property
-    def id(self):
-        # grab the code from execute method and hash it
-        reprstuff = " ".join([str(getattr(self, k)) for k in self.id_keys])
-        return md5(reprstuff.encode("utf-8")).hexdigest()
+    def code(self):
+        return self.prompt_template_string
 
-
-class asyncGPT3Edit(asyncPrompt, GPT3Edit):
-    async def execute(self, *args, **kwargs):
-        input = self.get_input(*args, **kwargs)
-        instruction = self.get_instruction(*args, **kwargs)
-        response = await async_get_gpt3_edit_response(
-            instruction,
-            input=input,
-            temperature=self.temperature,
-            model_name=self.model_name,
-        )
-        return response
-
-
-def prompt(f):
-    # check if f is async or not
-    if inspect.iscoroutinefunction(f):
-        return asyncPrompt(f.__name__, f)
-    return Prompt(f.__name__, f)
+    @property
+    def serialized_repr(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "type": self.__class__.__name__,
+            "code": self.code,
+            "special_kwargs": self.kwargs,
+        }

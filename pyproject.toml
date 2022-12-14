@@ -13,7 +13,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "requests",
+    "requests", "unsync", "aiohttp", "python-dotenv", "jinja2"
 ]
 urls = {homepage = "https://github.com/approximatelabs/lambdaprompt"}
 dynamic = ["version"]
@@ -34,10 +34,6 @@ python =
     3.11: py311
 
 [testenv]
-deps=
-    pytest
-    tox
-    isort
-    black
+deps= -rdev-requirements.txt
 commands = python -m pytest tests
 """
