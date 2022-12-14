@@ -19,7 +19,6 @@ urls = {homepage = "https://github.com/approximatelabs/lambdaprompt"}
 dynamic = ["version"]
 
 [tool.setuptools_scm]
-write_to = "lambdaprompt/_version.py"
 
 [tool.tox]
 legacy_tox_ini = """
