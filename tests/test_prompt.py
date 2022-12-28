@@ -3,7 +3,7 @@ import warnings
 
 import pytest
 
-from lambdaprompt import AsyncPrompt, Prompt, prompt, register_callback
+from lambdaprompt import AsyncPrompt, Prompt, prompt, register_call_callback
 
 
 def test_prompt_decorator():
@@ -45,14 +45,14 @@ def test_run_asyncfunction_in_sync_prompt():
 
 def test_callstack_takes_sync_and_async():
     log = []
-    register_callback(lambda *args: log.append(args))
+    register_call_callback(lambda *args: log.append(args))
 
     asynclog = []
 
     async def async_log_callback(*logs):
         asynclog.append(logs)
 
-    register_callback(async_log_callback)
+    register_call_callback(async_log_callback)
 
     @prompt
     def inner():
@@ -73,14 +73,14 @@ def test_callstack_takes_sync_and_async():
 @pytest.mark.asyncio
 async def test_callstack_takes_sync_and_async_in_async():
     log = []
-    register_callback(lambda *args: log.append(args))
+    register_call_callback(lambda *args: log.append(args))
 
     asynclog = []
 
     async def async_log_callback(*logs):
         asynclog.append(logs)
 
-    register_callback(async_log_callback)
+    register_call_callback(async_log_callback)
 
     @prompt
     async def inner():
@@ -101,7 +101,7 @@ async def test_callstack_takes_sync_and_async_in_async():
 
 def test_async_function_in_sync_prompt_has_callstack():
     log = []
-    register_callback(lambda *args: log.append(args))
+    register_call_callback(lambda *args: log.append(args))
 
     @prompt
     async def inner():
@@ -121,7 +121,7 @@ def test_async_function_in_sync_prompt_has_callstack():
 @pytest.mark.asyncio
 async def test_callstack_works_with_gather():
     log = []
-    register_callback(lambda *args: log.append(args))
+    register_call_callback(lambda *args: log.append(args))
 
     @prompt
     async def inner(x):

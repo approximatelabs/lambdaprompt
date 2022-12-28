@@ -89,6 +89,20 @@ df['capitals'] = df.apply(GPT3Prompt("""What is the capital of {{ country }}?"""
 lambdaprompt.register_callback(lambda *x: print(x))
 ```
 
+
+## Running `lambdaprompt` webserver (example, for dev)
+
+Built on fastapi, includes a simple dockerfile here too
+```
+docker build -t lambdaprompt:latest . --build-arg mode=dev
+docker run --it -v $(pwd):/code -p 4412:80 lambdaprompt:latest
+```
+
+For prod build
+```
+docker build -t lambdaprompt:latest .
+```
+
 ## Design Patterns
 - Response Optimization
   - [Ideation, Scoring and Selection](link)

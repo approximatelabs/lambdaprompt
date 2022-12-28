@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+databases[aiosqlite]>=0.6
+lambdaprompt

@@ -162,3 +162,5 @@ cython_debug/
 .python-version
 
 lambdaprompt/_version.py
+
+history.db

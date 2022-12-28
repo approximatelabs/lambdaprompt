@@ -1,5 +1,11 @@
 from .gpt3 import AsyncGPT3Prompt, GPT3Prompt
-from .prompt import AsyncPrompt, Prompt, prompt, register_callback
+from .prompt import (
+    AsyncPrompt,
+    Prompt,
+    prompt,
+    register_call_callback,
+    register_creation_callback,
+)
 
 __all__ = [
     "AsyncGPT3Prompt",
@@ -7,5 +13,6 @@ __all__ = [
     "AsyncPrompt",
     "Prompt",
     "prompt",
-    "register_callback",
+    "register_call_callback",
+    "register_creation_callback",
 ]

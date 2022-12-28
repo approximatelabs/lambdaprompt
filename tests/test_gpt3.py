@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from aioresponses import aioresponses
 
-from lambdaprompt import AsyncGPT3Prompt, GPT3Prompt, prompt, register_callback
+from lambdaprompt import AsyncGPT3Prompt, GPT3Prompt, prompt, register_call_callback
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +48,7 @@ async def test_async_gpt3_prompt_returns(mocker):
 @pytest.mark.asyncio
 async def test_async_gpt3_prompt_stacktrace(mocker):
     logs = []
-    register_callback(lambda *args: logs.append(args))
+    register_call_callback(lambda *args: logs.append(args))
 
     mocker.patch.dict("os.environ", {"OPENAI_API_KEY": "TEST"})
     with aioresponses() as m:

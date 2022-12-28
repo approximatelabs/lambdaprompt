@@ -5,7 +5,7 @@ import aiohttp
 from jinja2 import Environment, meta
 
 from .config import CONFIG
-from .prompt import AsyncPrompt, PromptTemplate
+from .prompt import AsyncPrompt, PromptTemplate, get_uid_from_obj
 
 env = Environment()
 
@@ -113,7 +113,7 @@ class GPT3Prompt(PromptTemplate):
         stop=None,
         model_name="text-davinci-003",
     ):
-        name = name or f"GPT3_{template_string[:10]}"
+        name = name or f"GPT3_{get_uid_from_obj(template_string)}"
         super().__init__(
             template_string,
             name=name,
@@ -139,7 +139,7 @@ class GPT3Edit(PromptTemplate):
         temperature=0.0,
         model_name="text-davinci-edit-001",
     ):
-        name = name or f"GPT3Edit_{instruction_template_string[:10]}"
+        name = name or f"GPT3Edit_{get_uid_from_obj(instruction_template_string)}"
         super().__init__(
             instruction_template_string,
             name=name,

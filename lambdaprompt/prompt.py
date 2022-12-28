@@ -10,16 +10,31 @@ from hashlib import sha256
 from jinja2 import Environment, meta
 from unsync import unsync
 
-CALLBACKS = []
+CALL_CALLBACKS = []
+CREATION_CALLBACKS = []
 
 
-def register_callback(callback):
-    CALLBACKS.append(callback)
+def register_call_callback(callback):
+    CALL_CALLBACKS.append(callback)
+
+
+def register_creation_callback(callback):
+    CREATION_CALLBACKS.append(callback)
 
 
 async def call_callbacks(*args):
     to_await = []
-    for callback in CALLBACKS:
+    for callback in CALL_CALLBACKS:
+        if inspect.iscoroutinefunction(callback):
+            to_await.append(callback(*args))
+        else:
+            callback(*args)
+    await asyncio.gather(*to_await)
+
+
+async def creation_callbacks(*args):
+    to_await = []
+    for callback in CREATION_CALLBACKS:
         if inspect.iscoroutinefunction(callback):
             to_await.append(callback(*args))
         else:
@@ -63,6 +78,8 @@ class Prompt:
     def __init__(self, function, name=None):
         self.name = name or function.__name__
         self.function = function
+        # We have now made a prompt, so we should call the creation callbacks
+        unsync(creation_callbacks)(self).result()
 
     def execute(self, *args, **kwargs):
         if not isinstance(self, AsyncPrompt) and inspect.iscoroutinefunction(
@@ -84,8 +101,11 @@ class Prompt:
             raise
         finally:
             et = time.time()
-            unsync(call_callbacks)("enter", st, exec_repr, response, et - st).result()
+            unsync(call_callbacks)("exit", st, exec_repr, response, et - st).result()
         return response
+
+    def get_signature(self):
+        return inspect.signature(self.function)
 
     @property
     def id(self):
@@ -119,7 +139,7 @@ class AsyncPrompt(Prompt):
             raise
         finally:
             et = time.time()
-            await call_callbacks("enter", st, exec_repr, response, et - st)
+            await call_callbacks("exit", st, exec_repr, response, et - st)
         return response
 
 
@@ -159,6 +179,20 @@ class PromptTemplate(Prompt):
 
     def get_named_args(self):
         return meta.find_undeclared_variables(env.parse(self.prompt_template_string))
+
+    def get_signature(self):
+        # create a function signature that defines kwargs based on `get_named_args`
+        return inspect.Signature(
+            [
+                inspect.Parameter(
+                    name,
+                    inspect.Parameter.KEYWORD_ONLY,
+                    default=inspect.Parameter.empty,
+                    annotation=str,
+                )
+                for name in self.get_named_args()
+            ]
+        )
 
     @property
     def code(self):
