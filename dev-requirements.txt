@@ -6,3 +6,4 @@ flake8
 pytest-asyncio
 pytest-mock
 aioresponses
+httpx

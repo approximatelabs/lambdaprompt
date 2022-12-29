@@ -3,6 +3,7 @@ import warnings
 
 import pytest
 
+import lambdaprompt
 from lambdaprompt import AsyncPrompt, Prompt, prompt, register_call_callback
 
 

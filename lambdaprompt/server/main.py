@@ -6,10 +6,11 @@ import sys
 import traceback
 import uuid
 from collections import defaultdict
+from functools import lru_cache
 from typing import List
 
 from databases import Database
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI
 from pydantic import BaseSettings
 
 import lambdaprompt
@@ -24,9 +25,12 @@ class Settings(BaseSettings):
     sqlite_path: str = "sqlite:///./history.db"
 
 
-settings = Settings()
+@lru_cache()
+def get_settings():
+    return Settings()
 
-database = Database(settings.sqlite_path)
+
+database = None
 
 
 class CallWithId:
@@ -102,8 +106,10 @@ lambdaprompt.register_call_callback(log_call)
 
 
 @app.on_event("startup")
-async def startup():
+async def startup(settings: Settings = Depends(get_settings)):
     __import__("app.library")
+    global database
+    database = Database(settings.sqlite_path)
     await setup_database(database)
 
 
@@ -135,3 +141,8 @@ def background_result(task_id: str):
     # if the task is not done, return "not done"
     # if the task is not found, return "not found"
     return {"result": "not done"}
+
+
+@app.get("/")
+def root():
+    return {"message": "Hello World"}
