@@ -1,10 +1,10 @@
-from databases import Database
+from aiosqlite import Connection as Database
 
 
 async def setup_database(db: Database):
     query = f"""
         CREATE TABLE IF NOT EXISTS backgroundTasks (
-            backgroundTaskId TEXT PRIMARY KEY,
+            backgroundTaskId TEXT,
             logEventId TEXT
         );
     """
@@ -16,6 +16,21 @@ async def setup_database(db: Database):
         );
     """
     await db.execute(query)
+    query = f"""
+        CREATE TABLE IF NOT EXISTS prompts (
+            promptid TEXT PRIMARY KEY,
+            prompt TEXT
+        );
+    """
+    await db.execute(query)
+
+
+async def add_prompt_if_not_exists(db: Database, prompt_id: str, prompt: str):
+    query = f"""
+        INSERT OR IGNORE INTO prompts (promptId, prompt)
+        VALUES (:promptId, :prompt);
+    """
+    await db.execute(query, parameters={"promptId": prompt_id, "prompt": prompt})
 
 
 async def log_event(
@@ -26,8 +41,9 @@ async def log_event(
         VALUES (:logEventId, :logAsJson);
     """
     await db.execute(
-        query, values={"logEventId": log_event_id, "logAsJson": log_as_json}
+        query, parameters={"logEventId": log_event_id, "logAsJson": log_as_json}
     )
+
     if background_task_id:
         query = f"""
             INSERT INTO backgroundTasks (backgroundTaskId, logEventId)
@@ -35,7 +51,10 @@ async def log_event(
         """
         await db.execute(
             query,
-            values={"backgroundTaskId": background_task_id, "logEventId": log_event_id},
+            parameters={
+                "backgroundTaskId": background_task_id,
+                "logEventId": log_event_id,
+            },
         )
 
 
@@ -46,4 +65,9 @@ async def get_logs_for_task(db: Database, background_task_id: str):
         ON logEvents.logEventId = backgroundTasks.logEventId
         WHERE backgroundTasks.backgroundTaskId = :backgroundTaskId;
     """
-    return await db.fetch_all(query, values={"backgroundTaskId": background_task_id})
+    return [
+        l
+        for l, in await db.execute_fetchall(
+            query, parameters={"backgroundTaskId": background_task_id}
+        )
+    ]

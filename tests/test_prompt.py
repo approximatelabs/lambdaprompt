@@ -134,5 +134,5 @@ async def test_callstack_works_with_gather():
 
     assert await outer() == ["1!", "2!", "3!"]
     assert len(log) == 8
-    if not any([len(l[2]["callstack"]) == 2 for l in log]):
+    if any([len(l[2]["callstack"]) == 2 for l in log]):
         warnings.warn(Warning("Callstack not 2 deep when using gather"))

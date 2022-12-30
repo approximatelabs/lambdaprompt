@@ -2,27 +2,29 @@ import asyncio
 import importlib
 import inspect
 import json
+import logging
+import os
 import sys
 import traceback
 import uuid
-from collections import defaultdict
 from functools import lru_cache
 from typing import List
 
-from databases import Database
-from fastapi import BackgroundTasks, Depends, FastAPI
+import aiosqlite
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseSettings
 
 import lambdaprompt
 
-from .data import get_logs_for_task, log_event, setup_database
+from .data import add_prompt_if_not_exists, get_logs_for_task, log_event, setup_database
 
 app = FastAPI()
 
 
 class Settings(BaseSettings):
     # for now just making it work with sqlite...
-    sqlite_path: str = "sqlite:///./history.db"
+    sqlite_path: str = "history.db"
+    prompt_library_paths: List[str] = []
 
 
 @lru_cache()
@@ -39,6 +41,7 @@ class CallWithId:
         self.task_id = task_id
 
     def __call__(self, *args, **kwargs):
+        result = None
         try:
             result = self.func(*args, **kwargs)
             if inspect.isawaitable(result):
@@ -66,8 +69,7 @@ def registration_as_async_callback(prompt: lambdaprompt.Prompt):
         ]
     )
     background_callable.__name__ = "Background " + prompt.name
-
-    print(f"Registering Async {prompt.name}")
+    logging.info(f"Registering Async {prompt.name}")
     app.add_api_route(f"/async/{prompt.name}", background_callable)
 
 
@@ -80,37 +82,57 @@ def registration_as_prompt_callback(prompt: lambdaprompt.Prompt):
 
     basiccall.__signature__ = prompt.get_signature()
     basiccall.__name__ = prompt.name
-    print("Registering Direct Callable", prompt.name)
+    logging.info("Registering Direct Callable", prompt.name)
     app.add_api_route(f"/prompt/{prompt.name}", basiccall)
 
 
-lambdaprompt.register_creation_callback(registration_as_async_callback)
-lambdaprompt.register_creation_callback(registration_as_prompt_callback)
-
-
-async def log_call(*args):
-    # get the task_id if it exists
+async def log_call(enter_or_exit, st, exec_repr, result, duration):
+    prompt = exec_repr.pop("prompt")
+    await add_prompt_if_not_exists(database, prompt["id"], json.dumps(prompt))
+    new_prompt = {k: v for k, v in prompt.items() if k in ["id", "name", "type"]}
+    exec_repr["prompt"] = new_prompt
     taskid = None
     for frame in inspect.stack():
         if frame.function == "__call__":
             selfobj = frame[0].f_locals.get("self")
             if selfobj is not None:
-                print(selfobj, selfobj.__class__.__name__)
                 if isinstance(selfobj, CallWithId):
                     taskid = selfobj.task_id
-    print("Logging call", taskid, args)
-    await log_event(database, str(uuid.uuid4()), json.dumps(args), taskid)
+    await log_event(
+        database,
+        str(uuid.uuid4()),
+        json.dumps((enter_or_exit, st, exec_repr, result, duration)),
+        taskid,
+    )
 
 
+def import_modules(paths):
+    for directory in paths:
+        sys.path.append(directory)
+        for file in [f for f in os.listdir(directory) if f.endswith(".py")]:
+            module_name = file[:-3]
+            importlib.import_module(module_name, package=directory)
+
+
+lambdaprompt.register_creation_callback(registration_as_async_callback)
+lambdaprompt.register_creation_callback(registration_as_prompt_callback)
 lambdaprompt.register_call_callback(log_call)
 
 
 @app.on_event("startup")
-async def startup(settings: Settings = Depends(get_settings)):
-    __import__("app.library")
+async def startup():
+    settings = get_settings()
+
     global database
-    database = Database(settings.sqlite_path)
+    database = await aiosqlite.connect(settings.sqlite_path)
     await setup_database(database)
+
+    import_modules(settings.prompt_library_paths)
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.close()
 
 
 # @app.get("/add_gpt3_prompt")
@@ -129,20 +151,25 @@ def list_prompts():
     return {"prompts": url_list}
 
 
-@app.get("/background_status")
-async def background_status(task_id: str):
-    logs = await get_logs_for_task(database, task_id)
-    return {"status": logs}
+@app.get("/background_task_trace")
+async def background_task_trace(jobid: str):
+    logs = await get_logs_for_task(database, jobid)
+    return {"trace": logs}
 
 
 @app.get("/background_result")
-def background_result(task_id: str):
-    # if the task is done, return the result
-    # if the task is not done, return "not done"
-    # if the task is not found, return "not found"
-    return {"result": "not done"}
-
-
-@app.get("/")
-def root():
-    return {"message": "Hello World"}
+async def background_result(jobid: str):
+    logs = [json.loads(l) for l in await get_logs_for_task(database, jobid)]
+    if len(logs) == 0:
+        raise HTTPException(status_code=422, detail="Job not found")
+    parent_task, *_ = [
+        log for log in logs if log[0] == "enter" and len(log[2]["callstack"]) == 1
+    ]
+    exec_uuid = parent_task[2]["exec_uuid"]
+    possible_final = [
+        log for log in logs if log[0] == "exit" and log[2]["exec_uuid"] == exec_uuid
+    ]
+    if len(possible_final) == 0:
+        return {"status": "running"}
+    (final,) = possible_final
+    return {"status": "complete", "result": final[3], "duration": final[4]}

@@ -8,18 +8,31 @@ from functools import partial
 from hashlib import sha256
 
 from jinja2 import Environment, meta
-from unsync import unsync
 
 CALL_CALLBACKS = []
 CREATION_CALLBACKS = []
 
 
+def resolve(obj, asyncTry=False):
+    if asyncTry == True:
+        return obj
+    if not inspect.isawaitable(obj):
+        return obj
+    try:
+        result = asyncio.run(obj)
+    except RuntimeError:
+        result = asyncio.create_task(obj)
+    return result
+
+
 def register_call_callback(callback):
-    CALL_CALLBACKS.append(callback)
+    if callback not in CALL_CALLBACKS:
+        CALL_CALLBACKS.append(callback)
 
 
 def register_creation_callback(callback):
-    CREATION_CALLBACKS.append(callback)
+    if callback not in CREATION_CALLBACKS:
+        CREATION_CALLBACKS.append(callback)
 
 
 async def call_callbacks(*args):
@@ -47,7 +60,6 @@ def get_uid_from_obj(obj):
 
 
 def get_prompt_stack():
-    # TODO: Figure out how to "see" through asyncio.gather and unync(...).result()
     promptstack = []
     for frame in inspect.stack():
         if frame.function == "__call__":
@@ -79,13 +91,13 @@ class Prompt:
         self.name = name or function.__name__
         self.function = function
         # We have now made a prompt, so we should call the creation callbacks
-        unsync(creation_callbacks)(self).result()
+        resolve(creation_callbacks(self))
 
     def execute(self, *args, **kwargs):
         if not isinstance(self, AsyncPrompt) and inspect.iscoroutinefunction(
             self.function
         ):
-            return unsync(self.function)(*args, **kwargs).result()
+            return resolve(self.function(*args, **kwargs))
         return self.function(*args, **kwargs)
 
     def __call__(self, *args, **kwargs):
@@ -93,15 +105,15 @@ class Prompt:
         ps = get_prompt_stack()
         exec_repr = get_exec_repr()
         st = time.time()
-        unsync(call_callbacks)("enter", st, exec_repr, None, None).result()
+        resolve(call_callbacks("enter", st, exec_repr, None, None))
         try:
-            response = self.execute(*args, **kwargs)
+            response = resolve(self.execute(*args, **kwargs))
         except Exception:
             response = f"{traceback.format_exc()}"
             raise
         finally:
             et = time.time()
-            unsync(call_callbacks)("exit", st, exec_repr, response, et - st).result()
+            resolve(call_callbacks("exit", st, exec_repr, response, et - st))
         return response
 
     def get_signature(self):

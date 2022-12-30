@@ -13,14 +13,14 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "requests", "unsync", "aiohttp", "python-dotenv", "jinja2"
+    "requests", "aiohttp", "python-dotenv", "jinja2"
     
 ]
 urls = {homepage = "https://github.com/approximatelabs/lambdaprompt"}
 dynamic = ["version"]
 
 [project.optional-dependencies]
-server = ["fastapi", "uvicorn", "databases[aiosqlite]>=0.6"]
+server = ["fastapi", "uvicorn", "aiosqlite"]
 all = ["lambdaprompt[server]"]
 
 [tool.setuptools]
@@ -43,6 +43,6 @@ python =
 
 [testenv]
 deps= -rdev-requirements.txt
-extras = all
+extras = server
 commands = python -m pytest tests
 """

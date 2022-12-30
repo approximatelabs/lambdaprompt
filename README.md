@@ -6,6 +6,7 @@ lambdaprompt is a python package, ...
 * minimalistic API
 * functional helpers
 * create complex and emergent behavior
+* use as a webserver, easily host prompts as HTTP endpoints
 
 For using openAI, set up API keys as environment variables or set after importing (also easy to just make a `.env` file, since this uses `dotenv` package)
 
@@ -71,6 +72,34 @@ await basic_qa("Is it safe to eat pizza with chopsticks?")
 ```python
 print(*map(basic_qa, ["Is it safe to eat pizza with chopsticks?", "What is the capital of France?"]))
 ```
+
+## Using lambdaprompt as a webservice
+make a file
+
+`app.py`
+```python
+from lambdaprompt import AsyncGPT3Prompt, prompt
+from lambdaprompt.server.main import app
+
+AsyncGPT3Prompt(
+    """Rewrite the following as a {{ target_author }}. 
+```
+{{ source_text }}
+```
+Output:
+```
+""",
+    name="rewrite_as",
+    stop="```",
+)
+```
+
+Then run
+```
+uvicorn app:app --reload
+```
+
+browse to `http://localhost:8000/docs` to see the swagger docs generated for the prompts!
 
 ### IN PROGRESS (I think this doesn't work as expected yet...)
 3. You can apply these to pandas dataframes to do analytics quickly using LLMs
