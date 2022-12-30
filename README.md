@@ -8,6 +8,8 @@ lambdaprompt is a python package, ...
 * create complex and emergent behavior
 * use as a webserver, easily host prompts as HTTP endpoints
 
+(For use as a server, see the example: https://github.com/approximatelabs/example-lambdaprompt-server )
+
 For using openAI, set up API keys as environment variables or set after importing (also easy to just make a `.env` file, since this uses `dotenv` package)
 
 `OPENAI_API_KEY=...`
