@@ -77,7 +77,7 @@ print(*map(basic_qa, ["Is it safe to eat pizza with chopsticks?", "What is the c
 make a file
 
 `app.py`
-```python
+````python
 from lambdaprompt import AsyncGPT3Prompt, prompt
 from lambdaprompt.server.main import app
 
@@ -92,7 +92,7 @@ Output:
     name="rewrite_as",
     stop="```",
 )
-```
+````
 
 Then run
 ```
