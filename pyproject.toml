@@ -23,9 +23,6 @@ dynamic = ["version"]
 server = ["fastapi", "uvicorn", "aiosqlite"]
 all = ["lambdaprompt[server]"]
 
-[tool.setuptools]
-py-modules = ["lambdaprompt"]
-
 [tool.setuptools_scm]
 
 [tool.tox]
