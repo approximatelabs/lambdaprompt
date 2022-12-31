@@ -40,5 +40,6 @@ python =
 [testenv]
 deps= -rdev-requirements.txt
 extras = server
-commands = python -m pytest tests
+allowlist_externals= sh
+commands = sh -c 'timeout 30s python -m pytest tests || [ $? -eq 124 ]'
 """

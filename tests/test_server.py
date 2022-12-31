@@ -1,9 +1,7 @@
 import os
-import time
 from typing import List
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
