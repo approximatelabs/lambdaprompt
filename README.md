@@ -1,14 +1,12 @@
-# λprompt - Turn prompts into functions
+# λprompt - The easiest way to call and compose LLM prompts!
+
+Write LLM prompts with jinja templates, compose them in python as functions, and call them directly or use them as a webservice!
 
 `pip install lambdaprompt`
 
-lambdaprompt is a python package, ...
-* minimalistic API
-* functional helpers
-* create complex and emergent behavior
-* use as a webserver, easily host prompts as HTTP endpoints
-
 (For use as a server, see the example: https://github.com/approximatelabs/example-lambdaprompt-server )
+
+## Environment variables for using hosted models
 
 For using openAI, set up API keys as environment variables or set after importing (also easy to just make a `.env` file, since this uses `dotenv` package)
 
@@ -21,59 +19,69 @@ Prompts use JINJA templating to create a string, the string is passed to the LLM
 ```python
 from lambdaprompt import GPT3Prompt
 
-first = GPT3Prompt("Sally had {{ number }} of {{ thing }}. Sally sold ")
+example = GPT3Prompt("Sally had {{ number }} of {{ thing }}. Sally sold ")
 # then use it as a function
-first(number=12, thing="apples")
+example(number=12, thing="apples")
 ```
 
-You can also turn any function into a prompt (useful for composing prompts, or creating programs out of prompts.
+You can also turn any function into a prompt (useful for composing prompts, or creating programs out of prompts. This is commonly called "prompt chaining". See how you can achieve this with simple python composition.
+```python
+from lambdaprompt import prompt, GPT3Prompt
+
+generate_n_tasks = GPT3Prompt("Today I will do {{ n }} things (comma separated) [", stop="]")
+is_happy = GPT3Prompt("The task {{ task_detail }} is a task that will make me happy? (y/n):")
+
+@prompt
+def get_tasks_and_rate_is_happy(n=3):
+    results = []
+    for task in generate_n_tasks(n=n).split(","):
+        results.append((task, is_happy(task)))
+    return results
+
+print(get_tasks_and_rate_is_happy())
+```
+
+## Async and Sync
+
+Lambdaprompt works on both sync and async functions, and offers a sync and async templated prompt interface
+
+```python
+from lambdaprompt import GPT3Prompt, asyncGPT3Prompt
+
+#sync
+first = GPT3Prompt("Sally had {{ number }} of {{ thing }}. Sally sold ")
+first(number=12, thing="apples")
+
+#async
+first = asyncGPT3Prompt("Sally had {{ number }} of {{ thing }}. Sally sold ")
+await first(number=12, thing="apples")
+```
+
 ```python
 from lambdaprompt import prompt
 
 @prompt
-def standard_function(text_input):
-    res = is_a_question(text_input)
-    if res.lower().startswith('yes'):
-        return answer_the_question(text_input)
-    else:
-        return "That was not a question, please try again"
-```
+def sync_example(a):
+    return a + "!"
 
-## Using a prompt -- just call like a function
+sync_example("hello")
 
-```python
-first(number=12, thing="apples")
-```
+@prompt
+async def async_example(a):
+    return a + "!"
 
-### some examples
-```python
->>> from lambdaprompt.gpt3 import GPT3Prompt, GPT3Edit, AsyncGPT3Edit, AsyncGPT3Prompt
->>> first = GPT3Prompt("Sally had {{ number }} of {{ thing }}. Sally sold ")
->>> first(number=12, thing="apples")
-' 8 of the apples.\n\nSally now has 4 apples.'
-```
-
-```python
-wow = AsyncGPT3Edit("Turn this into a {{ joke_style }} joke")
-await wow(joke_style="american western", input="Sally ate a lot of food")
-```
-```
-'Sally ate a lot of food.\nShe was a cowgirl.\n'
+await async_example("hello")
 ```
 
 ### Some special properties
 
-1. For prompts with only a single variable, can directly call with the variable as args (no need to define in kwarg)
+For templated prompts with only template variable, can directly call with the variable as positional argument (no need to define in kwarg)
 ```python
 basic_qa = asyncGPT3Prompt("basic_qa", """What is the answer to the question [{{ question }}]?""")
 
 await basic_qa("Is it safe to eat pizza with chopsticks?")
 ```
 
-2. You can use functional primatives to create more complex prompts
-```python
-print(*map(basic_qa, ["Is it safe to eat pizza with chopsticks?", "What is the capital of France?"]))
-```
 
 ## Using lambdaprompt as a webservice
 make a file
@@ -103,47 +111,12 @@ uvicorn app:app --reload
 
 browse to `http://localhost:8000/docs` to see the swagger docs generated for the prompts!
 
-### IN PROGRESS (I think this doesn't work as expected yet...)
-3. You can apply these to pandas dataframes to do analytics quickly using LLMs
-```python
-import pandas as pd
-from lambdaprompt import GPT3Prompt
 
-df = pd.DataFrame({'country': ["France", "Japan", "USA"]})
-df['capitals'] = df.apply(GPT3Prompt("""What is the capital of {{ country }}?"""), axis=1)
-```
-
-
-## Advanced usage
-### Pre-and-post call hooks (tracing and logging)
-```
-lambdaprompt.register_callback(lambda *x: print(x))
-```
-
-
-## Running `lambdaprompt` webserver (example, for dev)
-
-Built on fastapi, includes a simple dockerfile here too
-```
-docker build -t lambdaprompt:latest . --build-arg mode=dev
-docker run --it -v $(pwd):/code -p 4412:80 lambdaprompt:latest
-```
-
-For prod build
-```
-docker build -t lambdaprompt:latest .
-```
-
-## Design Patterns
+## Design Patterns (TODO)
 - Response Optimization
   - [Ideation, Scoring and Selection](link)
   - [Error Correcting Language Loops](link)
 - Summarization and Aggregations
   - [Rolling](link)
-  - [k-tree](link)
+  - [Fan-out-tree](link)
 - [Meta-Prompting](link)
-
-
-## Contributions are welcome 
-[Contributing](contributing.md)
-
