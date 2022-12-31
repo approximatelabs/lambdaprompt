@@ -13,16 +13,10 @@ CALL_CALLBACKS = []
 CREATION_CALLBACKS = []
 
 
-def resolve(obj, asyncTry=False):
-    if asyncTry == True:
-        return obj
-    if not inspect.isawaitable(obj):
-        return obj
-    try:
-        result = asyncio.run(obj)
-    except RuntimeError:
-        result = asyncio.create_task(obj)
-    return result
+def resolve(obj):
+    if inspect.isawaitable(obj):
+        obj = asyncio.run(obj)
+    return obj
 
 
 def register_call_callback(callback):
@@ -67,7 +61,8 @@ def get_prompt_stack():
             if selfobj is not None:
                 if isinstance(selfobj, Prompt):
                     exec_uuid = frame[0].f_locals.get("exec_uuid")
-                    promptstack.append(exec_uuid)
+                    if exec_uuid and exec_uuid not in promptstack:
+                        promptstack.append(exec_uuid)
     return promptstack
 
 
@@ -139,20 +134,7 @@ class Prompt:
 
 class AsyncPrompt(Prompt):
     async def __call__(self, *args, **kwargs):
-        exec_uuid = str(uuid.uuid4())
-        ps = get_prompt_stack()
-        exec_repr = get_exec_repr()
-        st = time.time()
-        await call_callbacks("enter", st, exec_repr, None, None)
-        try:
-            response = await self.execute(*args, **kwargs)
-        except Exception:
-            response = f"{traceback.format_exc()}"
-            raise
-        finally:
-            et = time.time()
-            await call_callbacks("exit", st, exec_repr, response, et - st)
-        return response
+        return super().__call__(*args, **kwargs)
 
 
 def prompt(f):

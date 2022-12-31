@@ -13,8 +13,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "requests", "aiohttp", "python-dotenv", "jinja2"
-    
+    "requests", "aiohttp", "python-dotenv", "jinja2", "nest_asyncio"
 ]
 urls = {homepage = "https://github.com/approximatelabs/lambdaprompt"}
 dynamic = ["version"]
