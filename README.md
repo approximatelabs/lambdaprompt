@@ -8,7 +8,7 @@ We believe that large language model prompts are a lot like "functions" in a pro
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/gist/bluecoconut/bc5925d0de83b478852f5457ef8060ad/example-prompt.ipynb)
 
-[To run as a websever (built on `FastAPI`) click here.](https://github.com/approximatelabs/example-lambdaprompt-server)
+[A websever (built on `FastAPI`) example repository](https://github.com/approximatelabs/example-lambdaprompt-server)
 
 ## Environment variables for using hosted models
 
@@ -88,6 +88,8 @@ await basic_qa("Is it safe to eat pizza with chopsticks?")
 
 
 ## Using lambdaprompt as a webservice
+Simply `pip install lambdaprompt[server]` and then add `from lambdaprompt.server.main import app` to the top of your file!
+
 make a file
 
 `app.py`
