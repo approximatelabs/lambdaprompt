@@ -1,10 +1,14 @@
-# λprompt - The easiest way to call and compose LLM prompts!
+# λprompt - Build, compose and call templated LLM prompts!
 
 Write LLM prompts with jinja templates, compose them in python as functions, and call them directly or use them as a webservice!
 
+We believe that large language model prompts are a lot like "functions" in a programming sense and would benefit greatly by the power of an interpreted language. lambdaprompt is a library to offer an interface to back that belief up. This library allows for building full large language model based "prompt machines", including ones that self-edit to correct and even self-write their own execution code. 
+
 `pip install lambdaprompt`
 
-(For use as a server, see the example: https://github.com/approximatelabs/example-lambdaprompt-server )
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/gist/bluecoconut/bc5925d0de83b478852f5457ef8060ad/example-prompt.ipynb)
+
+[To run as a websever (built on `FastAPI`) click here.](https://github.com/approximatelabs/example-lambdaprompt-server)
 
 ## Environment variables for using hosted models
 
