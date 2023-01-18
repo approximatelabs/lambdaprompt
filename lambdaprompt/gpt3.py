@@ -47,7 +47,7 @@ async def async_get_gpt3_response(
     trying = 0
     while trying < 4:
         trying += 1
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(trust_env=True) as session:
             async with session.post(
                 "https://api.openai.com/v1/completions", headers=headers, json=data
             ) as resp:
@@ -88,7 +88,7 @@ async def async_get_gpt3_edit_response(
     trying = 0
     while trying < 4:
         trying += 1
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(trust_env=True) as session:
             async with session.post(
                 "https://api.openai.com/v1/edits", headers=headers, json=data
             ) as resp:
