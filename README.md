@@ -119,6 +119,8 @@ browse to `http://localhost:8000/docs` to see the swagger docs generated for the
 
 ## Running inside docker
 
+First, create an .env file with your OpenAI API key: (like `OPENAI_API_KEY=sk-dskj32094klsaj9024lkjsa`)
+
 ```
 docker build . -t lambdaprompt:0.0.1
 docker run -it --env-file .env lambdaprompt:0.0.1  bash -c "python two.py"
