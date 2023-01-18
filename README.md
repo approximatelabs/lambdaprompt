@@ -117,6 +117,23 @@ uvicorn app:app --reload
 
 browse to `http://localhost:8000/docs` to see the swagger docs generated for the prompts!
 
+## Running inside docker
+
+```
+docker build . -t lambdaprompt:0.0.1
+docker run -it --env-file .env lambdaprompt:0.0.1  bash -c "python two.py"
+```
+
+This will output something like this:
+
+```
+docker run -it --env-file .env lambdaprompt:0.0.1  bash -c "python two.py"
+[('example: go for a walk', '\n\nYes. Going for a walk can be a great way to boost your mood and get some fresh air.'), (' read a book', '\n\nYes'), (' call a friend', '\n\nYes')]
+
+docker run -it --env-file .env lambdaprompt:0.0.1  bash -c "python two.py"
+[(' edit ', '\n\nNo. Editing can be a tedious and time-consuming task, so it may not necessarily make you happy.')]
+```
+
 
 ## Design Patterns (TODO)
 - Response Optimization
