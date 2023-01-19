@@ -1,3 +1,5 @@
+[![](https://dcbadge.vercel.app/api/server/kW9nBQErGe?compact=true&style=flat)](https://discord.gg/kW9nBQErGe)
+
 # λprompt - Build, compose and call templated LLM prompts!
 
 Write LLM prompts with jinja templates, compose them in python as functions, and call them directly or use them as a webservice!
