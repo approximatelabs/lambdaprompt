@@ -134,7 +134,20 @@ class Prompt:
 
 class AsyncPrompt(Prompt):
     async def __call__(self, *args, **kwargs):
-        return super().__call__(*args, **kwargs)
+        exec_uuid = str(uuid.uuid4())
+        ps = get_prompt_stack()
+        exec_repr = get_exec_repr()
+        st = time.time()
+        resolve(call_callbacks("enter", st, exec_repr, None, None))
+        try:
+            response = await self.execute(*args, **kwargs)
+        except Exception:
+            response = f"{traceback.format_exc()}"
+            raise
+        finally:
+            et = time.time()
+            resolve(call_callbacks("exit", st, exec_repr, response, et - st))
+        return response
 
 
 def prompt(f):
