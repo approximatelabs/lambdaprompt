@@ -8,7 +8,7 @@ We believe that large language model prompts are a lot like "functions" in a pro
 
 `pip install lambdaprompt`
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/gist/bluecoconut/410a979d94613ea2aaf29987cf0233bc/sketch-demo.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/gist/bluecoconut/bc5925d0de83b478852f5457ef8060ad/example-prompt.ipynb)
 
 [A webserver (built on `FastAPI`) example repository](https://github.com/approximatelabs/example-lambdaprompt-server)
 
