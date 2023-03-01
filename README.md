@@ -30,6 +30,22 @@ example = GPT3Prompt("Sally had {{ number }} of {{ thing }}. Sally sold ")
 example(number=12, thing="apples")
 ```
 
+
+## Creating ChatGPT3 Conversational prompts
+
+Each prompt can be thought of as a parameterizable conversation, and executing the prompt with an input will apply that as "the next line of conversation" and then generate the response. 
+
+In order to update the memory state of the prompt, call the `.add()` method on the prompt, which can be used to add steps to a conversation and make the prompt "remember" what has been said.
+
+```python
+>>> import lambdaprompt as lp
+
+>>> convo = lp.AsyncGPT3Chat([{'system': 'You are a {{ type_of_bot }}'}])
+>>> await convo("What should we get for lunch?", type_of_bot="pirate")
+As a pirate, I would suggest we have some hearty seafood such as fish and chips or a seafood platter. We could also have some rum to wash it down! Arrr!
+```
+## General prompt creation
+
 You can also turn any function into a prompt (useful for composing prompts, or creating programs out of prompts. This is commonly called "prompt chaining". See how you can achieve this with simple python composition.
 ```python
 from lambdaprompt import prompt, GPT3Prompt
