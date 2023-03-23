@@ -13,7 +13,7 @@ env = Environment()
 
 
 def get_gpt3_completion_reqs(
-    prompt, temperature=0.0, stop=None, model_name="text-davinci-003"
+    prompt, temperature=0.0, stop=None, model_name="text-davinci-003", max_tokens=500
 ):
     if not os.environ.get("OPENAI_API_KEY"):
         raise Exception("No OpenAI API key found")
@@ -23,7 +23,7 @@ def get_gpt3_completion_reqs(
     }
     data = {
         "prompt": prompt,
-        "max_tokens": 500,
+        "max_tokens": max_tokens,
         "temperature": temperature,
         "model": model_name,
         "presence_penalty": 0.2,
@@ -43,7 +43,7 @@ def get_gpt3_response_choice(answer):
 
 
 async def async_get_gpt3_response(
-    prompt, temperature=0.0, stop=None, model_name="text-davinci-003"
+    prompt, temperature=0.0, stop=None, model_name="text-davinci-003", max_tokens=500
 ):
     headers, data = get_gpt3_completion_reqs(prompt, temperature, stop, model_name)
     trying = 0
@@ -67,7 +67,7 @@ async def async_get_gpt3_response(
 
 # message = {'role': ('system', 'user', 'assistant'), 'content': 'text'}
 def get_gpt3_chat_reqs(
-    messages, temperature=0.0, stop=None, model_name="gpt-3.5-turbo"
+    messages, temperature=0.0, stop=None, model_name="gpt-3.5-turbo", max_tokens=500
 ):
     if not os.environ.get("OPENAI_API_KEY"):
         raise Exception("No OpenAI API key found")
@@ -77,7 +77,7 @@ def get_gpt3_chat_reqs(
     }
     data = {
         "messages": messages,
-        "max_tokens": 500,
+        "max_tokens": max_tokens,
         "temperature": temperature,
         "model": model_name,
         "presence_penalty": 0.2,
@@ -99,7 +99,7 @@ def get_gpt3_chat_response_choice(answer):
 
 
 async def async_get_gpt3_chat_response(
-    messages, temperature=0.0, stop=None, model_name="gpt-3.5-turbo"
+    messages, temperature=0.0, stop=None, model_name="gpt-3.5-turbo", max_tokens=500
 ):
     headers, data = get_gpt3_chat_reqs(messages, temperature, stop, model_name)
     trying = 0
@@ -170,6 +170,7 @@ class GPT3Prompt(PromptTemplate):
         temperature=0.0,
         stop=None,
         model_name="text-davinci-003",
+        max_tokens=500
     ):
         name = name or f"GPT3_{get_uid_from_obj(template_string)}"
         super().__init__(
@@ -197,6 +198,7 @@ class GPT3Chat(PromptTemplate):
         temperature=0.0,
         stop=None,
         model_name="gpt-3.5-turbo",
+        max_tokens=500
     ):
         if isinstance(base_conversation, str):
             base_conversation = yaml.safe_load(base_conversation)
