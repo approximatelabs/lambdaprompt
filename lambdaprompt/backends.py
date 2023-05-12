@@ -23,17 +23,14 @@ def set_backend(backend_name):
 def get_backend(method):
     if method in backends:
         return backends[method]
-
     backend_env = os.environ.get("LAMBDAPROMPT_BACKEND", None)
     if backend_env:
         set_backend(backend_env)
         if method in backends:
             return backends[method]
-
     print(f"No backend set for [{method}], setting to default of OpenAI")
     set_backend('OpenAI')
     return backends[method]
-
 
 
 class Backend:
@@ -110,10 +107,7 @@ class OpenAICompletion(RequestBackend):
             "prompt": prompt,
             **self.parse_param(**kwargs)
         }
-        stop = data.pop('stop')
-        if stop:
-            data["stop"] = stop
-        return data
+        return {k: v for k, v in data.items() if v is not None}
 
     def parse_response(self, answer):
         if "error" in answer:
@@ -137,10 +131,7 @@ class OpenAIChat(OpenAICompletion):
             "messages": messages,
             **self.parse_param(**kwargs)
         }
-        stop = data.pop('stop')
-        if stop:
-            data["stop"] = stop
-        return data
+        return {k: v for k, v in data.items() if v is not None}
 
     def parse_response(self, answer):
         if "error" in answer:
@@ -189,6 +180,7 @@ class HuggingFaceBackend(Backend):
         return prompt
 
     async def __call__(self, prompt, **kwargs):
+        import torch
         s = self.preprocess(prompt)
         input_ids = self.tokenizer(s, return_tensors="pt").input_ids
         input_ids = input_ids.to(self.model.device)
