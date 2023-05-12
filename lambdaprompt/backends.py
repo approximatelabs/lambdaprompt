@@ -79,7 +79,8 @@ class OpenAICompletion(RequestBackend):
             "prompt": prompt,
             **self.parse_param(**kwargs)
         }
-        if stop := data.pop('stop'):
+        stop = data.pop('stop')
+        if stop:
             data["stop"] = stop
         return data
 
@@ -105,7 +106,8 @@ class OpenAIChat(OpenAICompletion):
             "messages": messages,
             **self.parse_param(**kwargs)
         }
-        if stop := data.pop('stop'):
+        stop = data.pop('stop')
+        if stop:
             data["stop"] = stop
         return data
 
