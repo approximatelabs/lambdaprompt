@@ -4,12 +4,6 @@ from pydantic import BaseModel, Extra
 from typing import Optional
 import tenacity
 
-try:
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-except ImportError:
-    pass
-
 
 backends = {}
 
@@ -167,7 +161,10 @@ class HuggingFaceBackend(Backend):
         top_k: int = 0
         repetition_penalty: float = 1.1
 
-    def __init__(self, model_name, torch_dtype=torch.bfloat16, trust_remote_code=True, use_auth_token=None, **param_override):
+    def __init__(self, model_name, torch_dtype=None, trust_remote_code=True, use_auth_token=None, **param_override):
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        torch_dtype = torch_dtype or torch.bfloat16
         super().__init__(**param_override)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
