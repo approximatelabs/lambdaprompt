@@ -1,20 +1,19 @@
-from .prompt import PromptTemplate, AsyncPromptTemplate, ChatTemplate, AsyncChatTemplate
+from .prompt import Completion, AsyncCompletion, Chat, AsyncChat
 from .backends import OpenAICompletion, OpenAIChat
-from functools import partial
 
 
-class GPT3Prompt(PromptTemplate):
+class GPT3Prompt(Completion):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, backend=OpenAICompletion())
 
-class AsyncGPT3Prompt(AsyncPromptTemplate):
+class AsyncGPT3Prompt(AsyncCompletion):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, backend=OpenAICompletion())
 
-class GPT3Chat(ChatTemplate):
+class GPT3Chat(Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, backend=OpenAIChat())
 
-class AsyncGPT3Chat(AsyncChatTemplate):
+class AsyncGPT3Chat(AsyncChat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, backend=OpenAIChat())

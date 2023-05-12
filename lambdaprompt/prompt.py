@@ -6,10 +6,11 @@ import traceback
 import uuid
 import yaml
 
-from functools import partial
 from hashlib import sha256
 
 from jinja2 import Environment, meta
+
+from .backends import get_backend
 
 CALL_CALLBACKS = []
 CREATION_CALLBACKS = []
@@ -163,16 +164,17 @@ def prompt(f):
 env = Environment()
 
 
-class PromptTemplate(Prompt):
+class Completion(Prompt):
     def __init__(self, prompt_template_string, name=None, backend=None, **kwargs):
         self.prompt_template_string = prompt_template_string
         self.prompt_template = env.from_string(prompt_template_string)
         self.kwargs = kwargs
-        self.backend = backend or self.call_on_template
+        self.backend = backend
 
         async def function(*prompt_args, **prompt_kwargs):
             prompt = self.get_prompt(*prompt_args, **prompt_kwargs)
-            return await self.backend(prompt, **self.kwargs)
+            backend = self.backend or get_backend('completion')
+            return await backend(prompt, **self.kwargs)
 
         super().__init__(function, name=name)
 
@@ -184,10 +186,6 @@ class PromptTemplate(Prompt):
                 **{n: a for n, a in zip(self.get_named_args(), args)}
             )
         return self.prompt_template.render(**kwargs)
-
-    @staticmethod
-    async def call_on_template(prompt, **kwargs):
-        raise NotImplementedError
 
     def get_named_args(self):
         return meta.find_undeclared_variables(env.parse(self.prompt_template_string))
@@ -220,10 +218,10 @@ class PromptTemplate(Prompt):
             "special_kwargs": self.kwargs,
         }
 
-class AsyncPromptTemplate(PromptTemplate, AsyncPrompt):
+class AsyncCompletion(Completion, AsyncPrompt):
     pass
 
-class ChatTemplate(PromptTemplate):
+class Chat(Completion):
     def __init__(
         self,
         base_conversation=None,
@@ -245,13 +243,14 @@ class ChatTemplate(PromptTemplate):
         self.roles = [next(iter(template.keys())) for template in base_conversation]
         self.message_template_strings = [next(iter(template.values())) for template in base_conversation]
         self.message_templates = [env.from_string(x) for x in self.message_template_strings]
-        self.backend = backend or self.call_on_messages
+        self.backend = backend
 
         async def function(user_input=None, **prompt_kwargs):
             messages = self.resolve_templated_conversation(user_input, **prompt_kwargs)
-            return await self.backend(messages, **self.kwargs)
+            backend = self.backend or get_backend('chat')
+            return await backend(messages, **self.kwargs)
 
-        super(PromptTemplate, self).__init__(function, name=name)
+        super(Completion, self).__init__(function, name=name)
 
     def resolve_templated_conversation(self, user_input=None, **prompt_kwargs):
         messages = []
@@ -287,5 +286,5 @@ class ChatTemplate(PromptTemplate):
     def code(self):
         return json.dumps([{k: v} for k, v in zip(self.roles, self.message_template_strings)])
 
-class AsyncChatTemplate(ChatTemplate, AsyncPrompt):
+class AsyncChat(Chat, AsyncPrompt):
     pass
