@@ -6,19 +6,14 @@ from aioresponses import aioresponses
 from lambdaprompt import AsyncGPT3Prompt, GPT3Prompt, prompt, register_call_callback
 
 
-@pytest.fixture(autouse=True)
-def ignore_load_dotenv(mocker):
-    mocker.patch("lambdaprompt.config.load_dotenv", return_value=None)
-
-
 def test_api_key_needed():
     with aioresponses() as m:
         m.post(
             "https://api.openai.com/v1/completions",
             payload={"choices": [{"text": "Wow!"}]},
         )
-        prompt = GPT3Prompt("test {{ hello }}")
         with pytest.raises(Exception):
+            prompt = GPT3Prompt("test {{ hello }}")
             prompt(hello="world")
 
 

@@ -4,10 +4,13 @@ import json
 import time
 import traceback
 import uuid
-from functools import partial
+import yaml
+
 from hashlib import sha256
 
 from jinja2 import Environment, meta
+
+from .backends import get_backend
 
 CALL_CALLBACKS = []
 CREATION_CALLBACKS = []
@@ -101,6 +104,7 @@ class Prompt:
         exec_repr = get_exec_repr()
         st = time.time()
         resolve(call_callbacks("enter", st, exec_repr, None, None))
+        response = None
         try:
             response = resolve(self.execute(*args, **kwargs))
         except Exception:
@@ -139,6 +143,7 @@ class AsyncPrompt(Prompt):
         exec_repr = get_exec_repr()
         st = time.time()
         resolve(call_callbacks("enter", st, exec_repr, None, None))
+        response = None
         try:
             response = await self.execute(*args, **kwargs)
         except Exception:
@@ -159,15 +164,17 @@ def prompt(f):
 env = Environment()
 
 
-class PromptTemplate(Prompt):
-    def __init__(self, prompt_template_string, name=None, **kwargs):
+class Completion(Prompt):
+    def __init__(self, prompt_template_string, name=None, backend=None, **kwargs):
         self.prompt_template_string = prompt_template_string
         self.prompt_template = env.from_string(prompt_template_string)
         self.kwargs = kwargs
+        self.backend = backend
 
         async def function(*prompt_args, **prompt_kwargs):
             prompt = self.get_prompt(*prompt_args, **prompt_kwargs)
-            return await self.call_on_template(prompt, **kwargs)
+            backend = self.backend or get_backend('completion')
+            return await backend(prompt, **self.kwargs)
 
         super().__init__(function, name=name)
 
@@ -179,10 +186,6 @@ class PromptTemplate(Prompt):
                 **{n: a for n, a in zip(self.get_named_args(), args)}
             )
         return self.prompt_template.render(**kwargs)
-
-    @staticmethod
-    async def call_on_template(prompt, **kwargs):
-        raise NotImplementedError
 
     def get_named_args(self):
         return meta.find_undeclared_variables(env.parse(self.prompt_template_string))
@@ -214,3 +217,74 @@ class PromptTemplate(Prompt):
             "code": self.code,
             "special_kwargs": self.kwargs,
         }
+
+class AsyncCompletion(Completion, AsyncPrompt):
+    pass
+
+class Chat(Completion):
+    def __init__(
+        self,
+        base_conversation=None,
+        name=None,
+        backend=None,
+        **kwargs
+    ):
+        if isinstance(base_conversation, str):
+            base_conversation = yaml.safe_load(base_conversation)
+
+        base_conversation = [] if base_conversation is None else base_conversation
+        assert isinstance(base_conversation, list)
+        assert all([isinstance(x, dict) for x in base_conversation])
+        # right now, assume its set up as {'system': 'hello {{user}}}', 'user': 'Hey there!', 'assistant': 'Hi!'}
+        assert all([k in ['user', 'assistant', 'system'] for x in base_conversation for k in x.keys()])
+        name = name or f"Chat_{get_uid_from_obj(base_conversation)}"
+
+        self.kwargs = kwargs
+        self.roles = [next(iter(template.keys())) for template in base_conversation]
+        self.message_template_strings = [next(iter(template.values())) for template in base_conversation]
+        self.message_templates = [env.from_string(x) for x in self.message_template_strings]
+        self.backend = backend
+
+        async def function(user_input=None, **prompt_kwargs):
+            messages = self.resolve_templated_conversation(user_input, **prompt_kwargs)
+            backend = self.backend or get_backend('chat')
+            return await backend(messages, **self.kwargs)
+
+        super(Completion, self).__init__(function, name=name)
+
+    def resolve_templated_conversation(self, user_input=None, **prompt_kwargs):
+        messages = []
+        for i, template in enumerate(self.message_templates):
+            messages.append({'role': self.roles[i], 'content': template.render(**prompt_kwargs)})
+        if user_input is not None:
+            messages.append({'role': 'user', 'content': user_input})
+        return messages
+    
+    def add(self, user=None, assistant=None, system=None):
+        # check that only 1 user, assistant or system is defined
+        assert sum([user is not None, assistant is not None, system is not None]) == 1, "only define one"
+        new_base_conversation = [{k: v} for k, v in zip(self.roles, self.message_template_strings)]
+        if user is not None:
+            new_base_conversation.append({'user': user})
+        if assistant is not None:
+            new_base_conversation.append({'assistant': assistant})
+        if system is not None:
+            new_base_conversation.append({'system': system})
+        return self.__class__(new_base_conversation, **self.kwargs)
+
+    def get_named_args(self):
+        variables = []
+        for template_string in self.message_template_strings:
+            variables.extend(meta.find_undeclared_variables(env.parse(template_string)))
+        return variables
+
+    @staticmethod
+    async def call_on_messages(messages, **kwargs):
+        raise NotImplementedError
+
+    @property
+    def code(self):
+        return json.dumps([{k: v} for k, v in zip(self.roles, self.message_template_strings)])
+
+class AsyncChat(Chat, AsyncPrompt):
+    pass
