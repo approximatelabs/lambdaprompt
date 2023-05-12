@@ -17,8 +17,8 @@ def test_api_key_needed():
             "https://api.openai.com/v1/completions",
             payload={"choices": [{"text": "Wow!"}]},
         )
-        prompt = GPT3Prompt("test {{ hello }}")
         with pytest.raises(Exception):
+            prompt = GPT3Prompt("test {{ hello }}")
             prompt(hello="world")
 
 
