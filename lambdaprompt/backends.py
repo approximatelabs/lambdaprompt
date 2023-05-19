@@ -225,7 +225,7 @@ class HuggingFaceBackend(Backend):
         torch_dtype = torch_dtype or torch.bfloat16
         super().__init__(**param_override)
         config = AutoConfig.from_pretrained(
-            "HuggingFaceH4/starchat-alpha",
+            model_name,
             trust_remote_code=True
         )
         self.model = AutoModelForCausalLM.from_pretrained(
