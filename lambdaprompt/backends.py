@@ -221,27 +221,32 @@ class HuggingFaceBackend(Backend):
 
     def __init__(self, model_name, torch_dtype=None, trust_remote_code=True, use_auth_token=None, **param_override):
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
         torch_dtype = torch_dtype or torch.bfloat16
         super().__init__(**param_override)
+        config = AutoConfig.from_pretrained(
+            "HuggingFaceH4/starchat-alpha",
+            trust_remote_code=True
+        )
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch_dtype,
             trust_remote_code=trust_remote_code,
             use_auth_token=use_auth_token,
+            config=config,
+            device_map="auto"
         )
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
             trust_remote_code=trust_remote_code,
             use_auth_token=use_auth_token,
+            device_map="auto"
         )
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = "left"
         self.tokenizer = tokenizer
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.eval()
-        self.model.to(device=device, dtype=torch_dtype)
 
     def preprocess(self, prompt):
         return prompt
