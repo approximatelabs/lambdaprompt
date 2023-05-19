@@ -20,7 +20,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 server = ["fastapi", "uvicorn", "aiosqlite"]
-local = ["transformers"]
+local = ["transformers", "accelerate"]
 all = ["lambdaprompt[server,local]"]
 
 [tool.setuptools_scm]
