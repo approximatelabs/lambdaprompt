@@ -219,28 +219,32 @@ class HuggingFaceBackend(Backend):
         repetition_penalty: float = 1.1
         stop: Optional[Union[str, List[str]]]
 
-    def __init__(self, model_name, torch_dtype=None, trust_remote_code=True, use_auth_token=None, **param_override):
+    def __init__(self, model_name, torch_dtype=None, trust_remote_code=True, use_auth_token=None, use_device_map=True, load_config=True, **param_override):
         import torch
         from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
         torch_dtype = torch_dtype or torch.bfloat16
         super().__init__(**param_override)
-        config = AutoConfig.from_pretrained(
-            model_name,
-            trust_remote_code=True
-        )
+        init_kwargs = {
+            "torch_dtype": torch_dtype,
+            "trust_remote_code": trust_remote_code,
+            "use_auth_token": use_auth_token,
+        }
+        if load_config:
+            init_kwargs['config'] = AutoConfig.from_pretrained(
+                model_name,
+                trust_remote_code=True
+            )
+        if use_device_map:
+            init_kwargs['device_map'] = "auto"
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch_dtype,
-            trust_remote_code=trust_remote_code,
-            use_auth_token=use_auth_token,
-            config=config,
-            device_map="auto"
+            **init_kwargs
         )
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
             trust_remote_code=trust_remote_code,
             use_auth_token=use_auth_token,
-            device_map="auto"
+            **({"device_map":"auto"} if use_device_map else {})
         )
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token = tokenizer.eos_token
@@ -290,7 +294,7 @@ class HuggingFaceBackend(Backend):
 
 class MPT7BInstructCompletion(HuggingFaceBackend):
     def __init__(self, **kwargs):
-        super().__init__("mosaicml/mpt-7b-instruct", **kwargs)
+        super().__init__("mosaicml/mpt-7b-instruct", use_device_map=False, **kwargs)
 
 
 class StarCoderCompletion(HuggingFaceBackend):
@@ -298,4 +302,4 @@ class StarCoderCompletion(HuggingFaceBackend):
         hf_access_token = hf_access_token or os.environ.get("HF_ACCESS_TOKEN")
         if not hf_access_token:
             raise Exception("No HuggingFace access token found (envvar HF_ACCESS_TOKEN))")
-        super().__init__("bigcode/starcoder", use_auth_token=hf_access_token, **kwargs)
+        super().__init__("bigcode/starcoder", use_auth_token=hf_access_token, load_config=False, **kwargs)
