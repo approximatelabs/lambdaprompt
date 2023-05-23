@@ -144,7 +144,7 @@ class AzureOpenAICompletion(RequestBackend):
     class Parameters(RequestBackend.Parameters):
         max_tokens: int = 500
         temperature: float = 0.0
-        model: str = "text-davinci-003"
+        model: str = "gpt-4"
         presence_penalty: float = 0.2
         frequency_penalty: float = 0.2
         stop: Optional[Union[str, List[str]]]
@@ -189,17 +189,11 @@ class AzureOpenAICompletion(RequestBackend):
             ],
             **kwargs,
         )
-        return response_dict["choices"][0].to_dict()["message"].to_dict()["content"]
-
-    def headers(self, *args, **kwargs):
-        return {
-            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
-            "Content-Type": "application/json",
-        }
-
-    def body(self, prompt, **kwargs):
-        data = {"prompt": prompt, **self.parse_param(**kwargs)}
-        return {k: v for k, v in data.items() if v is not None}
+        try:
+            result = self.parse_response(response_dict)
+        except Exception as e:
+            raise f"Error parsing response (only GPT4 models are supported for Azure OpenAI): {e}"
+        return result
 
     def parse_response(self, answer):
         if "error" in answer:
@@ -207,7 +201,9 @@ class AzureOpenAICompletion(RequestBackend):
                 raise RateLimitError()
             else:
                 raise Exception(f"Not sure what happened: {answer}")
-        return answer["choices"][0]["text"]
+        # if GPT3
+        # return answer["choices"][0].to_dict()["text"]
+        return answer["choices"][0].to_dict()["message"].to_dict()["content"]
 
 
 class AzureOpenAIChat(AzureOpenAICompletion):
@@ -217,17 +213,15 @@ class AzureOpenAIChat(AzureOpenAICompletion):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def body(self, messages, **kwargs):
-        data = {"messages": messages, **self.parse_param(**kwargs)}
-        return {k: v for k, v in data.items() if v is not None}
-
     def parse_response(self, answer):
         if "error" in answer:
             if "Rate limit" in answer.get("error", {}).get("message", ""):
                 raise RateLimitError()
             else:
                 raise Exception(f"Not sure what happened: {answer}")
-        return answer["choices"][0]["message"]["content"]
+        # if GPT3
+        # return answer["choices"][0].to_dict()["text"]
+        return answer["choices"][0].to_dict()["message"].to_dict()["content"]
 
 
 class HuggingFaceBackend(Backend):
