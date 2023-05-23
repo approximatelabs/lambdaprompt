@@ -3,19 +3,23 @@ import aiohttp
 from pydantic import BaseModel, Extra
 from typing import Optional, Union, List
 import tenacity
+import openai
 
 
 backends = {}
 
 
 def set_backend(backend_name):
-    if backend_name == 'MPT':
-        backends['completion'] = MPT7BInstructCompletion()
-    elif backend_name == 'StarCoder':
-        backends['completion'] = StarCoderCompletion()
-    elif backend_name == 'GPT3' or backend_name == 'OpenAI':
-        backends['completion'] = OpenAICompletion()
-        backends['chat'] = OpenAIChat()
+    if backend_name == "MPT":
+        backends["completion"] = MPT7BInstructCompletion()
+    elif backend_name == "StarCoder":
+        backends["completion"] = StarCoderCompletion()
+    elif backend_name == "GPT3" or backend_name == "OpenAI":
+        backends["completion"] = OpenAICompletion()
+        backends["chat"] = OpenAIChat()
+    elif backend_name == "Azure-OpenAI":
+        backends["completion"] = AzureOpenAICompletion()
+        backends["chat"] = AzureOpenAIChat()
     else:
         raise ValueError(f"Unknown backend {backend_name}")
 
@@ -29,7 +33,7 @@ def get_backend(method):
         if method in backends:
             return backends[method]
     print(f"No backend set for [{method}], setting to default of OpenAI")
-    set_backend('OpenAI')
+    set_backend("OpenAI")
     return backends[method]
 
 
@@ -40,7 +44,7 @@ class Backend:
 
     def __init__(self, **param_override):
         self.param_override = self.Parameters(**param_override)
-    
+
     def parse_param(self, **kwargs):
         return self.Parameters(**{**self.param_override.dict(), **kwargs}).dict()
 
@@ -53,7 +57,7 @@ class RequestBackend(Backend):
     def __init__(self, endpoint_url, **param_override):
         self.endpoint_url = endpoint_url
         super().__init__(**param_override)
-    
+
     def headers(self, *args, **kwargs):
         raise NotImplementedError("Must implement headers")
 
@@ -64,11 +68,11 @@ class RequestBackend(Backend):
         raise NotImplementedError("Must implement result_parser")
 
     @tenacity.retry(
-            wait=tenacity.wait_exponential(multiplier=1, min=4, max=10),
-            stop=tenacity.stop_after_attempt(4),
-            retry=tenacity.retry_if_exception_type(RateLimitError),
-            reraise=True
-            )
+        wait=tenacity.wait_exponential(multiplier=1, min=4, max=10),
+        stop=tenacity.stop_after_attempt(4),
+        retry=tenacity.retry_if_exception_type(RateLimitError),
+        reraise=True,
+    )
     async def __call__(self, *args, **kwargs):
         headers = self.headers(*args, **kwargs)
         data = self.body(*args, **kwargs)
@@ -85,11 +89,11 @@ class OpenAICompletion(RequestBackend):
     class Parameters(RequestBackend.Parameters):
         max_tokens: int = 500
         temperature: float = 0.0
-        model: str = 'text-davinci-003'
+        model: str = "text-davinci-003"
         presence_penalty: float = 0.2
         frequency_penalty: float = 0.2
         stop: Optional[Union[str, List[str]]]
-    
+
     def __init__(self, openai_api_key=None, **param_override):
         self.openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
         if not self.openai_api_key:
@@ -103,10 +107,7 @@ class OpenAICompletion(RequestBackend):
         }
 
     def body(self, prompt, **kwargs):
-        data = {
-            "prompt": prompt,
-            **self.parse_param(**kwargs)
-        }
+        data = {"prompt": prompt, **self.parse_param(**kwargs)}
         return {k: v for k, v in data.items() if v is not None}
 
     def parse_response(self, answer):
@@ -120,17 +121,14 @@ class OpenAICompletion(RequestBackend):
 
 class OpenAIChat(OpenAICompletion):
     class Parameters(OpenAICompletion.Parameters):
-        model: str = 'gpt-3.5-turbo'
-    
+        model: str = "gpt-3.5-turbo"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.endpoint_url = "https://api.openai.com/v1/chat/completions"
 
     def body(self, messages, **kwargs):
-        data = {
-            "messages": messages,
-            **self.parse_param(**kwargs)
-        }
+        data = {"messages": messages, **self.parse_param(**kwargs)}
         return {k: v for k, v in data.items() if v is not None}
 
     def parse_response(self, answer):
@@ -139,7 +137,97 @@ class OpenAIChat(OpenAICompletion):
                 raise RateLimitError()
             else:
                 raise Exception(f"Not sure what happened: {answer}")
-        return answer["choices"][0]["message"]['content']
+        return answer["choices"][0]["message"]["content"]
+
+
+class AzureOpenAICompletion(RequestBackend):
+    class Parameters(RequestBackend.Parameters):
+        max_tokens: int = 500
+        temperature: float = 0.0
+        model: str = "text-davinci-003"
+        presence_penalty: float = 0.2
+        frequency_penalty: float = 0.2
+        stop: Optional[Union[str, List[str]]]
+
+    def __init__(
+        self,
+        openai_api_key=None,
+        openai_api_url=None,
+        openai_api_version=None,
+        model=None,
+        **param_override,
+    ):
+        self.openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
+        self.open_api_url = openai_api_url or os.environ.get("OPENAI_API_URL")
+        self.open_api_version = openai_api_version or os.environ.get(
+            "OPENAI_API_VERSION"
+        )
+        self.model = model or os.environ.get("OPENAI_MODEL")
+        if not self.openai_api_key:
+            raise Exception("No OpenAI API key found (envvar OPENAI_API_KEY))")
+        super().__init__(self.open_api_url, **param_override)
+
+    def configure_azure_openai(self):
+        openai.api_type = "azure"
+        openai.api_base = self.open_api_url
+        openai.api_version = self.open_api_version
+        openai.api_key = self.openai_api_key
+
+    async def __call__(self, *args, **kwargs):
+        self.configure_azure_openai()
+        if "model" in kwargs:
+            _ = kwargs.pop("model")
+        prompt = args[0]
+        response_dict = openai.ChatCompletion.create(
+            engine=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an AI assistant that helps people find information.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            **kwargs,
+        )
+        return response_dict["choices"][0].to_dict()["message"].to_dict()["content"]
+
+    def headers(self, *args, **kwargs):
+        return {
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+            "Content-Type": "application/json",
+        }
+
+    def body(self, prompt, **kwargs):
+        data = {"prompt": prompt, **self.parse_param(**kwargs)}
+        return {k: v for k, v in data.items() if v is not None}
+
+    def parse_response(self, answer):
+        if "error" in answer:
+            if "Rate limit" in answer.get("error", {}).get("message", ""):
+                raise RateLimitError()
+            else:
+                raise Exception(f"Not sure what happened: {answer}")
+        return answer["choices"][0]["text"]
+
+
+class AzureOpenAIChat(AzureOpenAICompletion):
+    class Parameters(AzureOpenAICompletion.Parameters):
+        pass
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def body(self, messages, **kwargs):
+        data = {"messages": messages, **self.parse_param(**kwargs)}
+        return {k: v for k, v in data.items() if v is not None}
+
+    def parse_response(self, answer):
+        if "error" in answer:
+            if "Rate limit" in answer.get("error", {}).get("message", ""):
+                raise RateLimitError()
+            else:
+                raise Exception(f"Not sure what happened: {answer}")
+        return answer["choices"][0]["message"]["content"]
 
 
 class HuggingFaceBackend(Backend):
@@ -153,9 +241,17 @@ class HuggingFaceBackend(Backend):
         repetition_penalty: float = 1.1
         stop: Optional[Union[str, List[str]]]
 
-    def __init__(self, model_name, torch_dtype=None, trust_remote_code=True, use_auth_token=None, **param_override):
+    def __init__(
+        self,
+        model_name,
+        torch_dtype=None,
+        trust_remote_code=True,
+        use_auth_token=None,
+        **param_override,
+    ):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
         torch_dtype = torch_dtype or torch.bfloat16
         super().__init__(**param_override)
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -183,6 +279,7 @@ class HuggingFaceBackend(Backend):
     async def __call__(self, prompt, **kwargs):
         import torch
         from transformers import StoppingCriteriaList
+
         genkwargs = self.parse_param(**kwargs)
 
         def get_stopping_for_ends(end_ids):
@@ -191,28 +288,36 @@ class HuggingFaceBackend(Backend):
             if len(end_ids) == 0:
                 return StoppingCriteriaList([lambda *args, **kwargs: False])
             max_stop_length = max(x.shape[0] for x in end_ids)
-            def stop_on_any(input_ids: torch.LongTensor, score: torch.FloatTensor, **kwargs) -> bool:
+
+            def stop_on_any(
+                input_ids: torch.LongTensor, score: torch.FloatTensor, **kwargs
+            ) -> bool:
                 last_tokens = input_ids[0, -max_stop_length:]
                 for end_id in end_ids:
-                    if torch.equal(last_tokens[-end_id.shape[0]:], end_id):
+                    if torch.equal(last_tokens[-end_id.shape[0] :], end_id):
                         return True
                 return False
 
             return StoppingCriteriaList([stop_on_any])
-        
+
         stop = genkwargs.pop("stop", None) or []
         if isinstance(stop, str):
             stop = [stop]
-        end_ids = [self.tokenizer(x, return_tensors="pt").input_ids[0].to(self.model.device) for x in stop]
+        end_ids = [
+            self.tokenizer(x, return_tensors="pt").input_ids[0].to(self.model.device)
+            for x in stop
+        ]
         s = self.preprocess(prompt)
         input_ids = self.tokenizer(s, return_tensors="pt").input_ids
         input_ids = input_ids.to(self.model.device)
         with torch.no_grad():
-            output_ids = self.model.generate(input_ids, stopping_criteria=get_stopping_for_ends(end_ids), **genkwargs)
+            output_ids = self.model.generate(
+                input_ids, stopping_criteria=get_stopping_for_ends(end_ids), **genkwargs
+            )
         new_tokens = output_ids[0, len(input_ids[0]) :]
         for end_id in end_ids:
-            if torch.equal(new_tokens[-end_id.shape[0]:], end_id):
-                new_tokens = new_tokens[:-end_id.shape[0]]
+            if torch.equal(new_tokens[-end_id.shape[0] :], end_id):
+                new_tokens = new_tokens[: -end_id.shape[0]]
         output_text = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
         return output_text
 
@@ -226,5 +331,7 @@ class StarCoderCompletion(HuggingFaceBackend):
     def __init__(self, hf_access_token=None, **kwargs):
         hf_access_token = hf_access_token or os.environ.get("HF_ACCESS_TOKEN")
         if not hf_access_token:
-            raise Exception("No HuggingFace access token found (envvar HF_ACCESS_TOKEN))")
+            raise Exception(
+                "No HuggingFace access token found (envvar HF_ACCESS_TOKEN))"
+            )
         super().__init__("bigcode/starcoder", use_auth_token=hf_access_token, **kwargs)

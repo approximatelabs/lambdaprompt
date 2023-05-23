@@ -173,7 +173,7 @@ class Completion(Prompt):
 
         async def function(*prompt_args, **prompt_kwargs):
             prompt = self.get_prompt(*prompt_args, **prompt_kwargs)
-            backend = self.backend or get_backend('completion')
+            backend = self.backend or get_backend("completion")
             return await backend(prompt, **self.kwargs)
 
         super().__init__(function, name=name)
@@ -218,17 +218,13 @@ class Completion(Prompt):
             "special_kwargs": self.kwargs,
         }
 
+
 class AsyncCompletion(Completion, AsyncPrompt):
     pass
 
+
 class Chat(Completion):
-    def __init__(
-        self,
-        base_conversation=None,
-        name=None,
-        backend=None,
-        **kwargs
-    ):
+    def __init__(self, base_conversation=None, name=None, backend=None, **kwargs):
         if isinstance(base_conversation, str):
             base_conversation = yaml.safe_load(base_conversation)
 
@@ -236,18 +232,28 @@ class Chat(Completion):
         assert isinstance(base_conversation, list)
         assert all([isinstance(x, dict) for x in base_conversation])
         # right now, assume its set up as {'system': 'hello {{user}}}', 'user': 'Hey there!', 'assistant': 'Hi!'}
-        assert all([k in ['user', 'assistant', 'system'] for x in base_conversation for k in x.keys()])
+        assert all(
+            [
+                k in ["user", "assistant", "system"]
+                for x in base_conversation
+                for k in x.keys()
+            ]
+        )
         name = name or f"Chat_{get_uid_from_obj(base_conversation)}"
 
         self.kwargs = kwargs
         self.roles = [next(iter(template.keys())) for template in base_conversation]
-        self.message_template_strings = [next(iter(template.values())) for template in base_conversation]
-        self.message_templates = [env.from_string(x) for x in self.message_template_strings]
+        self.message_template_strings = [
+            next(iter(template.values())) for template in base_conversation
+        ]
+        self.message_templates = [
+            env.from_string(x) for x in self.message_template_strings
+        ]
         self.backend = backend
 
         async def function(user_input=None, **prompt_kwargs):
             messages = self.resolve_templated_conversation(user_input, **prompt_kwargs)
-            backend = self.backend or get_backend('chat')
+            backend = self.backend or get_backend("chat")
             return await backend(messages, **self.kwargs)
 
         super(Completion, self).__init__(function, name=name)
@@ -255,21 +261,27 @@ class Chat(Completion):
     def resolve_templated_conversation(self, user_input=None, **prompt_kwargs):
         messages = []
         for i, template in enumerate(self.message_templates):
-            messages.append({'role': self.roles[i], 'content': template.render(**prompt_kwargs)})
+            messages.append(
+                {"role": self.roles[i], "content": template.render(**prompt_kwargs)}
+            )
         if user_input is not None:
-            messages.append({'role': 'user', 'content': user_input})
+            messages.append({"role": "user", "content": user_input})
         return messages
-    
+
     def add(self, user=None, assistant=None, system=None):
         # check that only 1 user, assistant or system is defined
-        assert sum([user is not None, assistant is not None, system is not None]) == 1, "only define one"
-        new_base_conversation = [{k: v} for k, v in zip(self.roles, self.message_template_strings)]
+        assert (
+            sum([user is not None, assistant is not None, system is not None]) == 1
+        ), "only define one"
+        new_base_conversation = [
+            {k: v} for k, v in zip(self.roles, self.message_template_strings)
+        ]
         if user is not None:
-            new_base_conversation.append({'user': user})
+            new_base_conversation.append({"user": user})
         if assistant is not None:
-            new_base_conversation.append({'assistant': assistant})
+            new_base_conversation.append({"assistant": assistant})
         if system is not None:
-            new_base_conversation.append({'system': system})
+            new_base_conversation.append({"system": system})
         return self.__class__(new_base_conversation, **self.kwargs)
 
     def get_named_args(self):
@@ -284,7 +296,10 @@ class Chat(Completion):
 
     @property
     def code(self):
-        return json.dumps([{k: v} for k, v in zip(self.roles, self.message_template_strings)])
+        return json.dumps(
+            [{k: v} for k, v in zip(self.roles, self.message_template_strings)]
+        )
+
 
 class AsyncChat(Chat, AsyncPrompt):
     pass
