@@ -18,8 +18,8 @@ def set_backend(backend_name):
         backends["completion"] = OpenAICompletion()
         backends["chat"] = OpenAIChat()
     elif backend_name == "Azure-OpenAI":
-        backends["completion"] = AzureOpenAICompletion()
-        backends["chat"] = AzureOpenAIChat()
+        backends["completion"] = AzureOpenAIGPT4Completion()
+        backends["chat"] = AzureOpenAIGPT4Chat()
     else:
         raise ValueError(f"Unknown backend {backend_name}")
 
@@ -140,7 +140,49 @@ class OpenAIChat(OpenAICompletion):
         return answer["choices"][0]["message"]["content"]
 
 
-class AzureOpenAICompletion(RequestBackend):
+class OpenAIGPT4Completion(OpenAICompletion):
+    class Parameters(OpenAICompletion.Parameters):
+        model: str = "gpt-4"
+
+    def parse_response(self, answer):
+        if "error" in answer:
+            if "Rate limit" in answer.get("error", {}).get("message", ""):
+                raise RateLimitError()
+            else:
+                raise Exception(f"Not sure what happened: {answer}")
+        answer_dict = answer.to_dict_recursive()
+        return answer_dict["choices"][0]["message"]["content"]
+
+    async def __call__(self, *args, **kwargs):
+        prompt = args[0]
+        response_dict = openai.ChatCompletion.create(
+            engine=self.Parameters().model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an AI assistant that helps people find information.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            **kwargs,
+        )
+        try:
+            result = self.parse_response(response_dict)
+        except Exception as e:
+            raise f"Error parsing response: {e}"
+        return result
+
+
+class OpenAIGPT4Chat(OpenAIGPT4Completion):
+    class Parameters(OpenAICompletion.Parameters):
+        model: str = "gpt-3.5-turbo"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.endpoint_url = "https://api.openai.com/v1/chat/completions"
+
+
+class AzureOpenAIGPT4Completion(RequestBackend):
     class Parameters(RequestBackend.Parameters):
         max_tokens: int = 500
         temperature: float = 0.0
@@ -192,36 +234,16 @@ class AzureOpenAICompletion(RequestBackend):
         try:
             result = self.parse_response(response_dict)
         except Exception as e:
-            raise f"Error parsing response (only GPT4 models are supported for Azure OpenAI): {e}"
+            raise f"Error parsing response: {e}"
         return result
 
-    def parse_response(self, answer):
-        if "error" in answer:
-            if "Rate limit" in answer.get("error", {}).get("message", ""):
-                raise RateLimitError()
-            else:
-                raise Exception(f"Not sure what happened: {answer}")
-        # if GPT3
-        # return answer["choices"][0].to_dict()["text"]
-        return answer["choices"][0].to_dict()["message"].to_dict()["content"]
 
-
-class AzureOpenAIChat(AzureOpenAICompletion):
-    class Parameters(AzureOpenAICompletion.Parameters):
+class AzureOpenAIGPT4Chat(AzureOpenAIGPT4Completion):
+    class Parameters(AzureOpenAIGPT4Completion.Parameters):
         pass
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-    def parse_response(self, answer):
-        if "error" in answer:
-            if "Rate limit" in answer.get("error", {}).get("message", ""):
-                raise RateLimitError()
-            else:
-                raise Exception(f"Not sure what happened: {answer}")
-        # if GPT3
-        # return answer["choices"][0].to_dict()["text"]
-        return answer["choices"][0].to_dict()["message"].to_dict()["content"]
 
 
 class HuggingFaceBackend(Backend):

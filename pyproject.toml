@@ -13,14 +13,14 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "requests", "aiohttp", "python-dotenv", "jinja2", "nest_asyncio", "pyyaml", "tenacity", "pydantic"
+    "requests", "aiohttp", "python-dotenv", "jinja2", "nest_asyncio", "pyyaml", "tenacity", "pydantic", "openai",
 ]
 urls = {homepage = "https://github.com/approximatelabs/lambdaprompt"}
 dynamic = ["version"]
 
 [project.optional-dependencies]
 server = ["fastapi", "uvicorn", "aiosqlite"]
-local = ["transformers"]
+local = ["transformers", "torch"]
 all = ["lambdaprompt[server,local]"]
 
 [tool.setuptools_scm]

@@ -7,3 +7,4 @@ pytest-asyncio
 pytest-mock
 aioresponses
 httpx
+load-dotenv
