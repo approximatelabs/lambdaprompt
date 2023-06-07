@@ -119,6 +119,16 @@ class OpenAICompletion(RequestBackend):
         return answer["choices"][0]["text"]
 
 
+def parse_openai_gpt4_response(answer):
+    if "error" in answer:
+        if "Rate limit" in answer.get("error", {}).get("message", ""):
+            raise RateLimitError()
+        else:
+            raise Exception(f"Not sure what happened: {answer}")
+    answer_dict = answer.to_dict_recursive()
+    return answer_dict["choices"][0]["message"]["content"]
+
+
 class OpenAIChat(OpenAICompletion):
     class Parameters(OpenAICompletion.Parameters):
         model: str = "gpt-3.5-turbo"
@@ -145,13 +155,7 @@ class OpenAIGPT4Completion(OpenAICompletion):
         model: str = "gpt-4"
 
     def parse_response(self, answer):
-        if "error" in answer:
-            if "Rate limit" in answer.get("error", {}).get("message", ""):
-                raise RateLimitError()
-            else:
-                raise Exception(f"Not sure what happened: {answer}")
-        answer_dict = answer.to_dict_recursive()
-        return answer_dict["choices"][0]["message"]["content"]
+        return parse_openai_gpt4_response(answer)
 
     async def __call__(self, *args, **kwargs):
         prompt = args[0]
@@ -236,6 +240,9 @@ class AzureOpenAIGPT4Completion(RequestBackend):
         except Exception as e:
             raise f"Error parsing response: {e}"
         return result
+
+    def parse_response(self, answer):
+        return parse_openai_gpt4_response(answer)
 
 
 class AzureOpenAIGPT4Chat(AzureOpenAIGPT4Completion):
