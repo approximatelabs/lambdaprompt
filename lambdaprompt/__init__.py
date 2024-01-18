@@ -1,11 +1,16 @@
 import nest_asyncio
+import asyncio
 
 from .gpt3 import AsyncGPT3Chat, AsyncGPT3Prompt, GPT3Chat, GPT3Prompt
 from .prompt import (AsyncPrompt, Prompt, prompt, Completion, AsyncCompletion, Chat, AsyncChat, register_call_callback,
                      register_creation_callback)
 from . import backends
 
-nest_asyncio.apply()
+try:
+    asyncio.get_running_loop()
+    nest_asyncio.apply()
+except RuntimeError:
+    pass
 
 __all__ = [
     "AsyncGPT3Prompt",
