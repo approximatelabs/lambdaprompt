@@ -89,7 +89,7 @@ class OpenAICompletion(RequestBackend):
     class Parameters(RequestBackend.Parameters):
         max_tokens: int = 500
         temperature: float = 0.0
-        model: str = 'text-davinci-003'
+        model: str = 'gpt-3.5-turbo-instruct'
         presence_penalty: float = 0.2
         frequency_penalty: float = 0.2
         stop: Optional[Union[str, List[str]]]
