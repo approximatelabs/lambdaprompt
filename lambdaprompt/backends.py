@@ -1,6 +1,6 @@
 import os
 import aiohttp
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel
 from typing import Optional, Union, List
 import tenacity
 
@@ -40,7 +40,7 @@ def get_backend(method):
 class Backend:
     class Parameters(BaseModel):
         class Config:
-            extra = Extra.forbid
+            extra = 'forbid'
 
     def __init__(self, **param_override):
         self.param_override = self.Parameters(**param_override)
@@ -92,7 +92,7 @@ class OpenAICompletion(RequestBackend):
         model: str = 'gpt-3.5-turbo-instruct'
         presence_penalty: float = 0.2
         frequency_penalty: float = 0.2
-        stop: Optional[Union[str, List[str]]]
+        stop: Optional[Union[str, List[str]]] = None
     
     def __init__(self, openai_api_key=None, **param_override):
         self.openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")

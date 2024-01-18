@@ -10,7 +10,7 @@ def client(mocker):
     from lambdaprompt.server import main
 
     class newSettings(main.Settings):
-        sqlite_path = ":memory:"
+        sqlite_path: str = ":memory:"
         prompt_library_paths: List[str] = [
             str(os.path.join(os.path.split(__file__)[0], "library"))
         ]

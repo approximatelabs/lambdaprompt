@@ -12,7 +12,7 @@ from typing import List
 
 import aiosqlite
 from fastapi import BackgroundTasks, FastAPI, HTTPException
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 import lambdaprompt
 
