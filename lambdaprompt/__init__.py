@@ -8,6 +8,10 @@ from . import backends
 
 try:
     asyncio.get_running_loop()
+except RuntimeError:
+    pass
+
+try:
     nest_asyncio.apply()
 except RuntimeError:
     pass
